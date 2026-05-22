@@ -23,15 +23,6 @@ services:
     volumes:
       - ./backend:/app
 
-  frontend:
-    build: ./frontend
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-    networks:
-      - focusflow_network
-
 volumes:
   postgres_data:
 
