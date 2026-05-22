@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { taskService, pomodoroService } from '../services/api'
-import Navbar from '../components/Navbar'
+import Layout from '../components/Layout'
 
 export default function Pomodoro() {
   const [tasks, setTasks] = useState([])
@@ -25,10 +25,7 @@ export default function Pomodoro() {
         setSeconds(prev => {
           if (prev === 0) {
             setMinutes(m => {
-              if (m === 0) {
-                handleCycleEnd()
-                return isBreak ? 25 : 5
-              }
+              if (m === 0) { handleCycleEnd(); return isBreak ? 25 : 5 }
               return m - 1
             })
             return 59
@@ -59,12 +56,7 @@ export default function Pomodoro() {
   const handleCycleEnd = async () => {
     setIsRunning(false)
     if (!isBreak && selectedTask) {
-      await pomodoroService.createSession({
-        task_id: selectedTask.id,
-        start_time: startTimeRef.current,
-        duration: 25,
-        completed: true
-      })
+      await pomodoroService.createSession({ task_id: selectedTask.id, start_time: startTimeRef.current, duration: 25, completed: true })
       setCycles(c => c + 1)
       const res = await pomodoroService.getSessions()
       setSessions(res.data)
@@ -74,77 +66,108 @@ export default function Pomodoro() {
     setSeconds(0)
   }
 
-  const progress = isBreak
-    ? ((5 * 60 - (minutes * 60 + seconds)) / (5 * 60)) * 100
-    : ((25 * 60 - (minutes * 60 + seconds)) / (25 * 60)) * 100
+  const total = isBreak ? 5 * 60 : 25 * 60
+  const remaining = minutes * 60 + seconds
+  const progress = ((total - remaining) / total) * 100
+  const circumference = 2 * Math.PI * 54
+  const strokeDashoffset = circumference - (progress / 100) * circumference
 
   return (
-    <div>
-      <Navbar />
-      <div style={styles.container}>
-        <h2 style={styles.title}>Temporizador Pomodoro</h2>
-
+    <Layout>
+      <h1 style={styles.title}>Módulo Pomodoro</h1>
+      <div style={styles.grid}>
         <div style={styles.card}>
-          <select style={styles.select} onChange={e => setSelectedTask(tasks.find(t => t.id === parseInt(e.target.value)))}>
-            <option value="">Selecciona una tarea</option>
-            {tasks.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
-          </select>
+          <div style={styles.modeRow}>
+            {['Enfoque', 'Descanso'].map(m => (
+              <button key={m} style={{ ...styles.modeBtn, ...((!isBreak && m === 'Enfoque') || (isBreak && m === 'Descanso') ? styles.modeBtnActive : {}) }}
+                onClick={() => { setIsRunning(false); setIsBreak(m === 'Descanso'); setMinutes(m === 'Descanso' ? 5 : 25); setSeconds(0) }}>
+                {m}
+              </button>
+            ))}
+          </div>
 
-          {selectedTask && <p style={styles.taskName}>📌 {selectedTask.title}</p>}
-
-          <div style={styles.timerContainer}>
-            <div style={styles.modeLabel}>{isBreak ? '☕ Descanso' : '🎯 Trabajo'}</div>
-            <div style={styles.timer}>
-              {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
-            </div>
-            <div style={styles.progressBar}>
-              <div style={{...styles.progressFill, width: `${progress}%`, background: isBreak ? '#10b981' : '#1B3A6B'}} />
+          <div style={styles.timerWrapper}>
+            <svg width="140" height="140" style={{ transform: 'rotate(-90deg)' }}>
+              <circle cx="70" cy="70" r="54" fill="none" stroke="var(--border)" strokeWidth="6" />
+              <circle cx="70" cy="70" r="54" fill="none" stroke="var(--accent)" strokeWidth="6"
+                strokeDasharray={circumference} strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round" style={{ transition: 'stroke-dashoffset 1s linear' }} />
+            </svg>
+            <div style={styles.timerText}>
+              <span style={styles.timerDigits}>{String(minutes).padStart(2,'0')}:{String(seconds).padStart(2,'0')}</span>
+              <span style={styles.timerMode}>{isRunning ? 'en progreso' : 'pausado'}</span>
             </div>
           </div>
 
           <div style={styles.controls}>
             {!isRunning
-              ? <button style={styles.btnStart} onClick={handleStart}>▶ Iniciar</button>
-              : <button style={styles.btnPause} onClick={handlePause}>⏸ Pausar</button>
+              ? <button style={styles.btnControl} onClick={handleStart}>Iniciar</button>
+              : <button style={{...styles.btnControl, background:'var(--surface2)', color:'var(--text)'}} onClick={handlePause}>Pausar</button>
             }
-            <button style={styles.btnReset} onClick={handleReset}>↺ Reiniciar</button>
+            <button style={{...styles.btnControl, background:'var(--surface2)', color:'var(--text)'}} onClick={handleReset}>Reset</button>
           </div>
 
-          <p style={styles.cycles}>Ciclos completados: <strong>{cycles}</strong></p>
+          <div style={styles.taskSelect}>
+            <label style={styles.taskLabel}>Tarea vinculada</label>
+            <select style={styles.select} onChange={e => setSelectedTask(tasks.find(t => t.id === parseInt(e.target.value)))}>
+              <option value="">Selecciona una tarea</option>
+              {tasks.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+            </select>
+          </div>
         </div>
 
-        <div style={styles.historyCard}>
-          <h3 style={styles.historyTitle}>Historial de sesiones</h3>
-          {sessions.length === 0 && <p style={{color:'#666'}}>No hay sesiones aún.</p>}
-          {sessions.slice(-5).reverse().map(s => (
-            <div key={s.id} style={styles.sessionItem}>
-              <span>✅ {s.duration} min — {new Date(s.start_time).toLocaleDateString()}</span>
-              <span style={{color: s.completed ? '#10b981' : '#f59e0b'}}>{s.completed ? 'Completada' : 'Incompleta'}</span>
+        <div style={styles.sideCards}>
+          <div style={styles.statCard}>
+            <p style={styles.statLabel}>Ciclos hoy</p>
+            <p style={styles.statNumber}>{cycles} <span style={styles.statSub}>/ 8 meta</span></p>
+            <div style={styles.dots}>
+              {Array.from({length:8},(_,i) => <div key={i} style={{...styles.dot, background: i < cycles ? 'var(--accent)' : 'var(--border)'}} />)}
             </div>
-          ))}
+          </div>
+          <div style={styles.statCard}>
+            <p style={styles.statLabel}>Tiempo enfocado hoy</p>
+            <p style={styles.statNumber}>{cycles * 25} <span style={styles.statSub}>min</span></p>
+          </div>
+          <div style={styles.statCard}>
+            <p style={styles.statLabel}>Historial de hoy</p>
+            {sessions.length === 0 && <p style={{color:'var(--text3)',fontSize:'0.85rem'}}>No hay sesiones aún.</p>}
+            {sessions.slice(-4).reverse().map(s => (
+              <div key={s.id} style={styles.sessionRow}>
+                <span style={styles.sessionTitle}>{tasks.find(t=>t.id===s.task_id)?.title || 'Tarea'}</span>
+                <span style={styles.sessionDur}>{s.duration} min</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+    </Layout>
   )
 }
 
 const styles = {
-  container: { padding: '2rem', maxWidth: '600px', margin: '0 auto' },
-  title: { color: '#1B3A6B', marginBottom: '1.5rem' },
-  card: { background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', marginBottom: '1.5rem' },
-  select: { width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #ddd', fontSize: '1rem', marginBottom: '1rem' },
-  taskName: { color: '#1B3A6B', fontWeight: '500', marginBottom: '1rem' },
-  timerContainer: { textAlign: 'center', margin: '1.5rem 0' },
-  modeLabel: { fontSize: '1rem', color: '#666', marginBottom: '0.5rem' },
-  timer: { fontSize: '4rem', fontWeight: 'bold', color: '#1B3A6B', fontFamily: 'monospace' },
-  progressBar: { height: '8px', background: '#e5e7eb', borderRadius: '4px', margin: '1rem 0', overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: '4px', transition: 'width 1s linear' },
-  controls: { display: 'flex', gap: '1rem', justifyContent: 'center' },
-  btnStart: { padding: '0.75rem 2rem', background: '#1B3A6B', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '1rem' },
-  btnPause: { padding: '0.75rem 2rem', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '1rem' },
-  btnReset: { padding: '0.75rem 2rem', background: '#6b7280', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '1rem' },
-  cycles: { textAlign: 'center', marginTop: '1rem', color: '#666' },
-  historyCard: { background: 'white', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 10px rgba(0,0,0,0.08)' },
-  historyTitle: { color: '#1B3A6B', marginBottom: '1rem' },
-  sessionItem: { display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid #f0f0f0', fontSize: '0.9rem' }
+  title: { fontSize: '1.5rem', fontWeight: '700', color: 'var(--text)', marginBottom: '1.5rem' },
+  grid: { display: 'grid', gridTemplateColumns: '1fr 280px', gap: '1rem', alignItems: 'start' },
+  card: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' },
+  modeRow: { display: 'flex', gap: '0.5rem' },
+  modeBtn: { padding: '0.4rem 1rem', borderRadius: '20px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: '0.875rem', cursor: 'pointer' },
+  modeBtnActive: { background: 'var(--accent-light)', color: 'var(--accent)', borderColor: 'transparent', fontWeight: '500' },
+  timerWrapper: { position: 'relative', width: '140px', height: '140px', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  timerText: { position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  timerDigits: { fontSize: '1.75rem', fontWeight: '700', color: 'var(--text)', fontFamily: 'monospace' },
+  timerMode: { fontSize: '0.72rem', color: 'var(--text3)', marginTop: '2px' },
+  controls: { display: 'flex', gap: '0.75rem' },
+  btnControl: { padding: '0.6rem 1.5rem', background: 'var(--text)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.9rem', fontWeight: '500', cursor: 'pointer' },
+  taskSelect: { width: '100%', display: 'flex', flexDirection: 'column', gap: '0.4rem' },
+  taskLabel: { fontSize: '0.82rem', color: 'var(--text2)', fontWeight: '500' },
+  select: { width: '100%', padding: '0.65rem 0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.9rem' },
+  sideCards: { display: 'flex', flexDirection: 'column', gap: '0.75rem' },
+  statCard: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' },
+  statLabel: { fontSize: '0.8rem', color: 'var(--text3)', margin: 0 },
+  statNumber: { fontSize: '1.5rem', fontWeight: '700', color: 'var(--text)', margin: 0 },
+  statSub: { fontSize: '0.85rem', fontWeight: '400', color: 'var(--text3)' },
+  dots: { display: 'flex', gap: '0.3rem', marginTop: '0.25rem' },
+  dot: { width: '10px', height: '10px', borderRadius: '50%' },
+  sessionRow: { display: 'flex', justifyContent: 'space-between', padding: '0.3rem 0', borderBottom: '1px solid var(--border)', fontSize: '0.85rem' },
+  sessionTitle: { color: 'var(--text)', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' },
+  sessionDur: { color: 'var(--text3)', flexShrink: 0 }
 }
