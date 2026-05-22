@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 from app.db.database import engine
 from app.models.models import Base
 from app.api.routes.auth import router as auth_router
+from app.api.routes.tasks import router as tasks_router
+from app.api.routes.tags import router as tags_router
 
 load_dotenv()
 
@@ -20,6 +22,8 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(tasks_router)
+app.include_router(tags_router)
 
 @app.get("/")
 def root():
