@@ -1,8 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from app.db.database import engine
+from app.models.models import Base
 
 load_dotenv()
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="FocusFlow API", version="1.0.0")
 
